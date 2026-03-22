@@ -1,3 +1,10 @@
 [
-  
+	{
+		"id": "meu-plugin",
+		"name": "meu plugin",
+		"author": "Unknown",
+		"description": "A Cortex plugin for meu plugin",
+		"coverImageUrl": "",
+		"repo": "furqas/meu-plugin"
+	}
 ]
