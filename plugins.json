@@ -1,3 +1,11 @@
 [
-
+	{
+		"id": "jorge",
+		"name": "jorge",
+		"author": "furqas",
+		"authorUrl": "github.com/furqas",
+		"description": "A Cortex plugin for alt",
+		"coverImageUrl": "",
+		"repo": "furqas/jorge"
+	}
 ]
