@@ -1,3 +1,11 @@
 [
-  
+	{
+		"id": "alt-plugin",
+		"name": "alt",
+		"author": "furqas",
+		"description": "A Cortex plugin for alt",
+		"coverImageUrl": "",
+		"repo": "furqas/alt-plugin",
+		"publishedAt": "2026-03-22T21:04:02Z"
+	}
 ]
