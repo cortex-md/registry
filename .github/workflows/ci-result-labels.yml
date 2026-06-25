@@ -1,0 +1,70 @@
+name: CI Result Labels
+
+on:
+  workflow_run:
+    workflows:
+      - Registry Review
+    types:
+      - completed
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  label:
+    name: Label validation result
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update review status labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const managedLabels = {
+              "review/needs-ci": { color: "fbca04", description: "Registry validation has not completed for the latest PR update" },
+              "review/ci-passed": { color: "0e8a16", description: "Registry validation passed for the latest PR update" },
+              "review/ci-failed": { color: "b60205", description: "Registry validation failed for the latest PR update" },
+            }
+            const { owner, repo } = context.repo
+            const pullRequests = context.payload.workflow_run.pull_requests ?? []
+            const statusLabel =
+              context.payload.workflow_run.conclusion === "success" ? "review/ci-passed" : "review/ci-failed"
+            const labelsToRemove = Object.keys(managedLabels).filter((label) => label !== statusLabel)
+
+            async function ensureLabel(name) {
+              const label = managedLabels[name]
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: label.color,
+                  description: label.description,
+                })
+              }
+            }
+
+            async function removeLabel(issue_number, name) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
+            for (const name of Object.keys(managedLabels)) await ensureLabel(name)
+
+            for (const pullRequest of pullRequests) {
+              const issue_number = pullRequest.number
+              for (const name of labelsToRemove) await removeLabel(issue_number, name)
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number,
+                labels: [statusLabel],
+              })
+            }

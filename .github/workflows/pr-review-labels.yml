@@ -1,0 +1,88 @@
+name: PR Review Labels
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  label:
+    name: Apply review labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label PR for review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const managedLabels = {
+              "kind/plugin": { color: "5319e7", description: "Changes plugin registry entries" },
+              "kind/theme": { color: "0e8a16", description: "Changes theme registry entries" },
+              "kind/mixed": { color: "1d76db", description: "Changes plugin and theme registry entries" },
+              "kind/infra": { color: "cfd3d7", description: "Changes registry infrastructure only" },
+              "review/needs-ci": { color: "fbca04", description: "Registry validation has not completed for the latest PR update" },
+              "review/ci-passed": { color: "0e8a16", description: "Registry validation passed for the latest PR update" },
+              "review/ci-failed": { color: "b60205", description: "Registry validation failed for the latest PR update" },
+            }
+            const kindLabels = ["kind/plugin", "kind/theme", "kind/mixed", "kind/infra"]
+            const statusLabels = ["review/needs-ci", "review/ci-passed", "review/ci-failed"]
+            const { owner, repo } = context.repo
+            const pull_number = context.payload.pull_request.number
+
+            async function ensureLabel(name) {
+              const label = managedLabels[name]
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: label.color,
+                  description: label.description,
+                })
+              }
+            }
+
+            async function removeLabel(name) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: pull_number, name })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+
+            for (const name of Object.keys(managedLabels)) await ensureLabel(name)
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            })
+            const fileNames = files.map((file) => file.filename)
+            const touchesPlugins = fileNames.includes("plugins.json")
+            const touchesThemes = fileNames.includes("themes.json")
+            const kindLabel = touchesPlugins && touchesThemes
+              ? "kind/mixed"
+              : touchesPlugins
+                ? "kind/plugin"
+                : touchesThemes
+                  ? "kind/theme"
+                  : "kind/infra"
+
+            for (const name of kindLabels.filter((label) => label !== kindLabel)) await removeLabel(name)
+            for (const name of statusLabels.filter((label) => label !== "review/needs-ci")) await removeLabel(name)
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pull_number,
+              labels: [kindLabel, "review/needs-ci"],
+            })
