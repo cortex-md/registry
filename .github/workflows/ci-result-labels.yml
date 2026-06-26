@@ -8,8 +8,9 @@ on:
       - completed
 
 permissions:
+  contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   label:
@@ -18,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update review status labels
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const managedLabels = {
