@@ -1,1 +1,10 @@
-[]
+[
+	{
+		"id": "gruvbox",
+		"name": "gruvbox",
+		"author": "Cortex Theme Lab",
+		"description": "A warm Gruvbox theme for Cortex with dark and light variants.",
+		"coverImageUrl": "",
+		"repo": "cortex-md/gruvbox"
+	}
+]
