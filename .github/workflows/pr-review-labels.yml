@@ -36,19 +36,39 @@ jobs:
             const { owner, repo } = context.repo
             const pull_number = context.payload.pull_request.number
 
+            function isPermissionError(error) {
+              return error.status === 403
+            }
+
+            function warnSkipped(action, error) {
+              core.warning(`${action} skipped: ${error.message}`)
+            }
+
             async function ensureLabel(name) {
               const label = managedLabels[name]
               try {
                 await github.rest.issues.getLabel({ owner, repo, name })
               } catch (error) {
+                if (isPermissionError(error)) {
+                  warnSkipped(`Reading label ${name}`, error)
+                  return
+                }
                 if (error.status !== 404) throw error
-                await github.rest.issues.createLabel({
-                  owner,
-                  repo,
-                  name,
-                  color: label.color,
-                  description: label.description,
-                })
+                try {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name,
+                    color: label.color,
+                    description: label.description,
+                  })
+                } catch (createError) {
+                  if (isPermissionError(createError)) {
+                    warnSkipped(`Creating label ${name}`, createError)
+                    return
+                  }
+                  throw createError
+                }
               }
             }
 
@@ -56,7 +76,28 @@ jobs:
               try {
                 await github.rest.issues.removeLabel({ owner, repo, issue_number: pull_number, name })
               } catch (error) {
+                if (isPermissionError(error)) {
+                  warnSkipped(`Removing label ${name}`, error)
+                  return
+                }
                 if (error.status !== 404) throw error
+              }
+            }
+
+            async function addLabels(labels) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  labels,
+                })
+              } catch (error) {
+                if (isPermissionError(error)) {
+                  warnSkipped(`Adding labels ${labels.join(", ")}`, error)
+                  return
+                }
+                throw error
               }
             }
 
@@ -81,9 +122,4 @@ jobs:
 
             for (const name of kindLabels.filter((label) => label !== kindLabel)) await removeLabel(name)
             for (const name of statusLabels.filter((label) => label !== "review/needs-ci")) await removeLabel(name)
-            await github.rest.issues.addLabels({
-              owner,
-              repo,
-              issue_number: pull_number,
-              labels: [kindLabel, "review/needs-ci"],
-            })
+            await addLabels([kindLabel, "review/needs-ci"])
