@@ -1,1 +1,10 @@
-[]
+[
+	{
+		"id": "note-pulse",
+		"name": "Note Pulse",
+		"author": "Cortex Team",
+		"description": "Shows useful writing and task insights for the active Cortex note.",
+		"coverImageUrl": "",
+		"repo": "cortex-md/note-pulse"
+	}
+]
