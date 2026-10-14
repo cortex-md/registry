@@ -1,1 +1,15 @@
-[]
+[
+	{
+		"id": "smart-typography",
+		"name": "Smart Typography",
+		"author": "Cortex Team",
+		"description": "Shows real dashes, arrows, ellipses and symbols while you type, and can apply them to the file.",
+		"coverImageUrl": "",
+		"screenshots": [
+			"https://raw.githubusercontent.com/cortex-md/smart-typography/main/screenshots/01-live-preview.png",
+			"https://raw.githubusercontent.com/cortex-md/smart-typography/main/screenshots/03-command.png",
+			"https://raw.githubusercontent.com/cortex-md/smart-typography/main/screenshots/02-settings.png"
+		],
+		"repo": "cortex-md/smart-typography"
+	}
+]
