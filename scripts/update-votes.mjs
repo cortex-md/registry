@@ -8,7 +8,7 @@ const VOTES_QUERY = `query($ids: [ID!]!) {
 	nodes(ids: $ids) {
 		... on Discussion {
 			id
-			reactions(content: THUMBS_UP, first: 1) { totalCount }
+			upvoteCount
 		}
 	}
 }`
@@ -28,7 +28,7 @@ export async function updateVotes({ rootDir = process.cwd(), github = createGitH
 	for (let index = 0; index < targets.length; index += BATCH_SIZE) {
 		const batch = targets.slice(index, index + BATCH_SIZE)
 		const data = await github.graphql(VOTES_QUERY, { ids: batch.map((target) => target.nodeId) })
-		const counts = new Map((data.nodes ?? []).filter(Boolean).map((node) => [node.id, node.reactions.totalCount]))
+		const counts = new Map((data.nodes ?? []).filter(Boolean).map((node) => [node.id, node.upvoteCount]))
 		for (const target of batch) {
 			const votes = counts.get(target.nodeId)
 			if (votes === undefined) {
