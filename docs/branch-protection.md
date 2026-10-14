@@ -15,6 +15,16 @@ Configure the `main` branch in GitHub repository settings with these rules.
 - Dismiss stale approvals when new commits are pushed.
 - Require conversation resolution before merge.
 
+## Automation
+
+- Keep the `data` branch unprotected (or add GitHub Actions as a bypass actor). Every stats workflow
+  pushes `stats.json` there with `GITHUB_TOKEN`.
+- Block pull requests opened by the audit use `GITHUB_TOKEN`, so they do not trigger
+  `Registry Review` and never get the required check. A repository admin merges them with the
+  bypass ("Merge without waiting for requirements"), or closes them as false positives.
+- Fork pull requests from `cortex submit` get their `review/ci-*` label from `CI Result Labels`,
+  which finds the pull request by the head commit.
+
 ## Merge Rules
 
 - Block force pushes.

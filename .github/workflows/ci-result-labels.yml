@@ -28,9 +28,9 @@ jobs:
               "review/ci-failed": { color: "b60205", description: "Registry validation failed for the latest PR update" },
             }
             const { owner, repo } = context.repo
-            const pullRequests = context.payload.workflow_run.pull_requests ?? []
+            const run = context.payload.workflow_run
             const statusLabel =
-              context.payload.workflow_run.conclusion === "success" ? "review/ci-passed" : "review/ci-failed"
+              run.conclusion === "success" ? "review/ci-passed" : "review/ci-failed"
             const labelsToRemove = Object.keys(managedLabels).filter((label) => label !== statusLabel)
 
             function isPermissionError(error) {
@@ -98,10 +98,22 @@ jobs:
               }
             }
 
+            async function findPullRequestNumbers() {
+              const direct = (run.pull_requests ?? []).map((pullRequest) => pullRequest.number)
+              if (direct.length > 0) return direct
+              const open = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 })
+              return open.filter((pullRequest) => pullRequest.head.sha === run.head_sha).map((pullRequest) => pullRequest.number)
+            }
+
+            const pullRequestNumbers = await findPullRequestNumbers()
+            if (pullRequestNumbers.length === 0) {
+              core.info(`No open pull request has head ${run.head_sha}`)
+              return
+            }
+
             for (const name of Object.keys(managedLabels)) await ensureLabel(name)
 
-            for (const pullRequest of pullRequests) {
-              const issue_number = pullRequest.number
+            for (const issue_number of pullRequestNumbers) {
               for (const name of labelsToRemove) await removeLabel(issue_number, name)
               await addLabels(issue_number, [statusLabel])
             }

@@ -23,6 +23,7 @@ const themeEntry = {
 	author: "Cortex",
 	description: "A sample theme",
 	coverImageUrl: "",
+	screenshots: ["https://raw.githubusercontent.com/cortex-md/sample-theme/main/screenshots/dark.png"],
 	repo: "cortex-md/sample-theme",
 }
 

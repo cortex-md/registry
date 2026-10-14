@@ -15,7 +15,10 @@ import {
 	VERIFIED_FILE,
 } from "./lib/registry-data.mjs"
 
-const ENTRY_FIELDS = ["id", "name", "author", "authorUrl", "description", "coverImageUrl", "repo"]
+const ENTRY_FIELDS = ["id", "name", "author", "authorUrl", "description", "coverImageUrl", "screenshots", "repo"]
+const MAX_SCREENSHOTS = 6
+const MAX_SCREENSHOT_URL_LENGTH = 500
+const SCREENSHOT_EXTENSIONS = /\.(png|jpe?g|webp|gif)$/i
 
 const MAINTAINER_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"])
 const AUTOMATION_LOGINS = new Set(["github-actions[bot]"])
@@ -348,6 +351,7 @@ function validateEntryShape(entry, kind, label) {
 	if (entry.authorUrl !== undefined && !isHttpsUrl(entry.authorUrl)) {
 		issues.push(`${label}: authorUrl must be an https URL when provided`)
 	}
+	if (entry.screenshots !== undefined) issues.push(...validateScreenshots(entry.screenshots, label))
 
 	for (const field of Object.keys(entry)) {
 		if (!ENTRY_FIELDS.includes(field)) issues.push(`${label}: unknown field "${field}"`)
@@ -355,6 +359,25 @@ function validateEntryShape(entry, kind, label) {
 
 	if (kind !== "plugin" && kind !== "theme") issues.push(`${label}: unknown registry kind "${kind}"`)
 
+	return issues
+}
+
+function validateScreenshots(screenshots, label) {
+	if (!Array.isArray(screenshots) || screenshots.length === 0 || screenshots.length > MAX_SCREENSHOTS) {
+		return [`${label}: screenshots must be an array of 1 to ${MAX_SCREENSHOTS} image URLs when provided`]
+	}
+	const issues = []
+	screenshots.forEach((url, index) => {
+		if (
+			typeof url !== "string" ||
+			url.length > MAX_SCREENSHOT_URL_LENGTH ||
+			!isHttpsUrl(url) ||
+			!SCREENSHOT_EXTENSIONS.test(new URL(url).pathname)
+		) {
+			issues.push(`${label}: screenshots[${index}] must be an https URL to a .png, .jpg, .webp or .gif image`)
+		}
+	})
+	if (new Set(screenshots).size !== screenshots.length) issues.push(`${label}: screenshots must not repeat`)
 	return issues
 }
 
