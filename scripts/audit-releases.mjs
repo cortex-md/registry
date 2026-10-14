@@ -54,44 +54,55 @@ export async function auditReleases({ rootDir = process.cwd(), github = createGi
 	pruneStats(stats, registry)
 	const openIssues = await listOpenAuditIssues(github, repository)
 
+	const failures = []
 	for (const { kind, statsKey, entries } of registry) {
 		for (const entry of entries) {
-			let result
 			try {
-				result = await auditEntry(github, kind, entry)
+				await auditListedEntry({ github, repository, kind, statsKey, entry, stats, blocked, openIssues, now, log })
 			} catch (error) {
-				if (!(error instanceof GitHubError)) throw error
-				log(`skipped ${kind} ${entry.id}: ${error.message}`)
-				continue
-			}
-
-			const status = auditStatus(result.findings)
-			statsItem(stats, statsKey, entry.id).audit = {
-				status,
-				checkedTag: result.tag,
-				checkedAt: now().toISOString(),
-				issues: result.findings.map((finding) => `${finding.level}: ${finding.message}`),
-			}
-
-			const issueTitle = `audit: ${kind} ${entry.id}`
-			const openIssue = openIssues.find((issue) => issue.title === issueTitle)
-			if (status === "fail") {
-				const issueNumber = await reportFailure(github, repository, openIssue, issueTitle, kind, entry, result)
-				if (!isVersionBlocked(findBlock(blocked, kind, entry.id), result.version)) {
-					await proposeBlock(github, repository, kind, entry, result, issueNumber, now(), log)
-				}
-			} else if (openIssue) {
-				await github.rest(`/repos/${repository}/issues/${openIssue.number}/comments`, {
-					method: "POST",
-					body: { body: `Release ${result.tag} passes the audit (${status}). Closing.` },
-				})
-				await github.rest(`/repos/${repository}/issues/${openIssue.number}`, { method: "PATCH", body: { state: "closed" } })
+				failures.push(`${kind} ${entry.id}: ${error.message}`)
+				log(`failed ${kind} ${entry.id}: ${error.message}`)
 			}
 		}
 	}
 
 	stats.generatedAt = now().toISOString()
 	await writeStats(rootDir, stats)
+	return { failures }
+}
+
+async function auditListedEntry({ github, repository, kind, statsKey, entry, stats, blocked, openIssues, now, log }) {
+	let result
+	try {
+		result = await auditEntry(github, kind, entry)
+	} catch (error) {
+		if (!(error instanceof GitHubError)) throw error
+		log(`skipped ${kind} ${entry.id}: ${error.message}`)
+		return
+	}
+
+	const status = auditStatus(result.findings)
+	statsItem(stats, statsKey, entry.id).audit = {
+		status,
+		checkedTag: result.tag,
+		checkedAt: now().toISOString(),
+		issues: result.findings.map((finding) => `${finding.level}: ${finding.message}`),
+	}
+
+	const issueTitle = `audit: ${kind} ${entry.id}`
+	const openIssue = openIssues.find((issue) => issue.title === issueTitle)
+	if (status === "fail") {
+		const issueNumber = await reportFailure(github, repository, openIssue, issueTitle, kind, entry, result)
+		if (!isVersionBlocked(findBlock(blocked, kind, entry.id), result.version)) {
+			await proposeBlock(github, repository, kind, entry, result, issueNumber, now(), log)
+		}
+	} else if (openIssue) {
+		await github.rest(`/repos/${repository}/issues/${openIssue.number}/comments`, {
+			method: "POST",
+			body: { body: `Release ${result.tag} passes the audit (${status}). Closing.` },
+		})
+		await github.rest(`/repos/${repository}/issues/${openIssue.number}`, { method: "PATCH", body: { state: "closed" } })
+	}
 }
 
 async function listOpenAuditIssues(github, repository) {
@@ -119,10 +130,16 @@ async function reportFailure(github, repository, openIssue, title, kind, entry, 
 
 async function proposeBlock(github, repository, kind, entry, result, issueNumber, date, log) {
 	const branch = `audit/block-${kind}-${entry.id}-${result.version}`
-	if (await github.exists(`/repos/${repository}/git/ref/heads/${branch}`)) return
+	const [owner] = repository.split("/")
+	const pulls = await github.rest(`/repos/${repository}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch}`)}`)
+	if (pulls.length > 0) return
 
 	const base = await github.rest(`/repos/${repository}/git/ref/heads/${BASE_BRANCH}`)
-	await github.rest(`/repos/${repository}/git/refs`, { method: "POST", body: { ref: `refs/heads/${branch}`, sha: base.object.sha } })
+	if (await github.exists(`/repos/${repository}/git/ref/heads/${branch}`)) {
+		await github.rest(`/repos/${repository}/git/refs/heads/${branch}`, { method: "PATCH", body: { sha: base.object.sha, force: true } })
+	} else {
+		await github.rest(`/repos/${repository}/git/refs`, { method: "POST", body: { ref: `refs/heads/${branch}`, sha: base.object.sha } })
+	}
 
 	const file = await github.rest(`/repos/${repository}/contents/${BLOCKED_FILE}?ref=${branch}`)
 	const blocked = JSON.parse(Buffer.from(file.content, "base64").toString("utf8"))
@@ -171,5 +188,9 @@ function safeParse(source) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-	await auditReleases()
+	const { failures } = await auditReleases()
+	if (failures.length > 0) {
+		console.error(`audit could not finish ${failures.length} entr${failures.length === 1 ? "y" : "ies"}:\n${failures.join("\n")}`)
+		process.exitCode = 1
+	}
 }

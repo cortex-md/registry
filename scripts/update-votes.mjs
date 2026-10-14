@@ -27,7 +27,7 @@ export async function updateVotes({ rootDir = process.cwd(), github = createGitH
 
 	for (let index = 0; index < targets.length; index += BATCH_SIZE) {
 		const batch = targets.slice(index, index + BATCH_SIZE)
-		const data = await github.graphql(VOTES_QUERY, { ids: batch.map((target) => target.nodeId) })
+		const data = await github.graphql(VOTES_QUERY, { ids: batch.map((target) => target.nodeId) }, { allowNotFound: true })
 		const counts = new Map((data.nodes ?? []).filter(Boolean).map((node) => [node.id, node.upvoteCount]))
 		for (const target of batch) {
 			const votes = counts.get(target.nodeId)

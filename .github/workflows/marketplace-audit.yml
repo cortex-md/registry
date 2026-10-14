@@ -34,4 +34,5 @@ jobs:
         run: node scripts/audit-releases.mjs
 
       - name: Publish stats
+        if: ${{ !cancelled() }}
         run: 'scripts/publish-stats.sh "chore(stats): update audit"'

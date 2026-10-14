@@ -18,13 +18,21 @@ Both files are flat JSON arrays sorted by `id`.
 		"authorUrl": "https://example.com",
 		"description": "Adds an example command.",
 		"coverImageUrl": "https://example.com/cover.png",
+		"screenshots": [
+			"https://raw.githubusercontent.com/owner/example-plugin/main/screenshots/editor.png"
+		],
 		"repo": "owner/example-plugin"
 	}
 ]
 ```
 
 Required fields: `id`, `name`, `author`, `description`, `coverImageUrl`, and `repo`.
-`authorUrl` is optional. `repo` must use GitHub `owner/repo` format.
+`authorUrl` and `screenshots` are optional. `repo` must use GitHub `owner/repo` format.
+
+`screenshots` lists 1 to 6 https URLs to `.png`, `.jpg`, `.webp` or `.gif` images, shown in this
+order on the Marketplace page of the item in Cortex and on the website. Keep the images in the
+item's repository (for example `screenshots/*.png` on `main`) and set them with `screenshots` in
+`manifest.json` before running `cortex submit`.
 
 ## How to submit
 
@@ -36,7 +44,7 @@ cortex submit          # checks the release and opens or updates this pull reque
 ```
 
 Entries carry no version: Cortex always installs the latest GitHub release of `repo`. Submit again
-only when the name, author, description or cover image change.
+only when the name, author, description, cover image or screenshots change.
 
 ## Release Requirements
 
@@ -61,7 +69,8 @@ Theme releases must include:
 
 ## Votes, downloads and stats
 
-Generated data lives on the `data` branch, never on `main`:
+Generated data lives on the `data` branch, never on `main` (`stats.json` is gitignored there). The
+workflows restore it from `data`, update it and push it back:
 
 ```text
 https://raw.githubusercontent.com/cortex-md/registry/data/stats.json
@@ -87,11 +96,11 @@ https://raw.githubusercontent.com/cortex-md/registry/data/stats.json
 
 | Field | Source | Refresh |
 | --- | --- | --- |
-| `votes` | Upvotes on the item's Discussion (`Plugins` / `Themes` categories) | every 30 min |
+| `votes` | Upvotes on the item's Discussion (`Plugins` / `Themes` categories); reactions and comments do not count | every 30 min |
 | `downloads` | `download_count` of the bundle asset (themes: the most downloaded stylesheet) summed over every release; never decreases | every 6 h |
 | `stars`, `latest`, `releasedAt` | the item's repository and latest release | every 6 h |
 | `audit` | static scan of the latest release, mirroring `cortex check` | daily |
-| `discussion` | created when an entry is merged, locked when it is removed | on merge and daily |
+| `discussion` | created when an entry is merged, locked when it is removed, recreated if it is deleted | on merge and daily |
 
 Downloads include updates. Installs from the source-archive fallback are not counted.
 
@@ -106,7 +115,9 @@ Only maintainers change these files.
   removed automatically; Cortex asks the user to disable them.
 
 The daily audit opens an `audit` issue and a pull request proposing a block when a release fails.
-A maintainer merges it or closes it as a false positive.
+A maintainer merges it or closes it as a false positive; a closed proposal is not reopened for the
+same version. One failing item never stops the audit of the others, and the audit result is
+published to `stats.json` even when some items could not be checked.
 
 ## Ownership
 
@@ -117,10 +128,14 @@ manual check.
 ## Maintainer setup
 
 1. Enable Discussions and create the `Plugins` and `Themes` categories in **Announcement** format,
-   so only maintainers and automation can open topics while everyone can react and comment.
+   so only maintainers and automation can open topics while everyone can upvote and comment.
 2. In Settings → Actions → General, allow GitHub Actions to create pull requests (used by the
    audit).
-3. Run the `Marketplace Discussions` workflow once to create the existing discussions.
+3. Make maintainer memberships of the organization public. Pull request checks read the author
+   association and the ownership check reads public membership.
+4. Protect `main` as described in [docs/branch-protection.md](docs/branch-protection.md). Leave
+   `data` unprotected so the workflows can push `stats.json`.
+5. Run the `Marketplace Discussions` workflow once to create the existing discussions.
 
 ## Validation
 

@@ -63,14 +63,15 @@ export function createGitHub({ token = process.env.GITHUB_TOKEN, fetchImpl = fet
 		return items
 	}
 
-	async function graphql(query, variables = {}) {
+	async function graphql(query, variables = {}, { allowNotFound = false } = {}) {
 		const response = await send(`${API}/graphql`, {
 			method: "POST",
 			body: JSON.stringify({ query, variables }),
 			headers: { "Content-Type": "application/json" },
 		})
 		const payload = await response.json()
-		if (payload.errors?.length) {
+		const notFoundOnly = payload.errors?.every((error) => error.type === "NOT_FOUND")
+		if (payload.errors?.length && !(allowNotFound && notFoundOnly && payload.data)) {
 			throw new GitHubError(`GraphQL: ${payload.errors.map((error) => error.message).join("; ")}`, 200)
 		}
 		return payload.data
