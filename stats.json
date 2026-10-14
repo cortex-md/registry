@@ -1,6 +1,14 @@
 {
 	"generatedAt": "2026-10-14T18:08:54.883Z",
-	"plugins": {},
+	"plugins": {
+		"smart-typography": {
+			"discussion": {
+				"number": 11,
+				"nodeId": "D_kwDOTFXh0M4AqC2P",
+				"url": "https://github.com/cortex-md/registry/discussions/11"
+			}
+		}
+	},
 	"themes": {
 		"gruvbox": {
 			"downloads": 18,
