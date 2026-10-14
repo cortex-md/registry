@@ -30,7 +30,7 @@ const COMMENT_MUTATION = `mutation($discussionId: ID!, $body: String!) {
 	addDiscussionComment(input: { discussionId: $discussionId, body: $body }) { comment { id } }
 }`
 
-const LOCK_MUTATION = `mutation($id: ID!) { lockLockable(input: { lockableId: $id, lockReason: RESOLVED }) { clientMutationId } }`
+const LOCK_MUTATION = `mutation($id: ID!) { lockLockable(input: { lockableId: $id }) { clientMutationId } }`
 const UNLOCK_MUTATION = `mutation($id: ID!) { unlockLockable(input: { lockableId: $id }) { clientMutationId } }`
 
 export function discussionTitle(kind, id) {
