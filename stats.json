@@ -1,5 +1,19 @@
 {
-	"generatedAt": "2026-10-14T07:55:45.652Z",
-	"plugins": {},
-	"themes": {}
+	"generatedAt": "2026-10-14T12:19:49.996Z",
+	"plugins": {
+		"note-pulse": {
+			"downloads": 9,
+			"stars": 0,
+			"latest": "0.1.0",
+			"releasedAt": "2026-06-26T17:30:58Z"
+		}
+	},
+	"themes": {
+		"gruvbox": {
+			"downloads": 10,
+			"stars": 0,
+			"latest": "1.0.0",
+			"releasedAt": "2026-06-26T15:23:27Z"
+		}
+	}
 }
