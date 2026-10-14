@@ -1,3 +1,5 @@
+<!-- Opened with `cortex submit`? The checklist below is already verified. -->
+
 ## Submission Type
 
 - [ ] Plugin registry entry
@@ -10,8 +12,9 @@
 - [ ] The repository has a public latest GitHub release.
 - [ ] The latest release includes `manifest.json`.
 - [ ] The latest release `manifest.id` matches the registry entry `id`.
+- [ ] The release tag matches `manifest.version` (plain `MAJOR.MINOR.PATCH`).
 - [ ] Plugin releases include the bundle asset named by `manifest.main`, or an asset with the same basename.
-- [ ] Theme releases include both dark and light stylesheet assets.
+- [ ] Theme releases include both dark and light stylesheet assets, and `manifest.name` equals the `id`.
 - [ ] README.md exists on `main` or `master`.
 
 ## Review Notes

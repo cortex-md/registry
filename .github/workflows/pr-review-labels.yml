@@ -30,6 +30,7 @@ jobs:
               "review/needs-ci": { color: "fbca04", description: "Registry validation has not completed for the latest PR update" },
               "review/ci-passed": { color: "0e8a16", description: "Registry validation passed for the latest PR update" },
               "review/ci-failed": { color: "b60205", description: "Registry validation failed for the latest PR update" },
+              "review/ownership": { color: "d93f0b", description: "Author ownership of a submitted repository needs manual review" },
             }
             const kindLabels = ["kind/plugin", "kind/theme", "kind/mixed", "kind/infra"]
             const statusLabels = ["review/needs-ci", "review/ci-passed", "review/ci-failed"]
@@ -123,3 +124,44 @@ jobs:
             for (const name of kindLabels.filter((label) => label !== kindLabel)) await removeLabel(name)
             for (const name of statusLabels.filter((label) => label !== "review/needs-ci")) await removeLabel(name)
             await addLabels([kindLabel, "review/needs-ci"])
+
+            async function readIndex(fileName, ref) {
+              try {
+                const { data } = await github.rest.repos.getContent({ owner, repo, path: fileName, ref })
+                const parsed = JSON.parse(Buffer.from(data.content, "base64").toString("utf8"))
+                return Array.isArray(parsed) ? parsed : []
+              } catch {
+                return []
+              }
+            }
+
+            async function ownsRepository(login, repository) {
+              const repoOwner = String(repository).split("/")[0] ?? ""
+              if (repoOwner.toLowerCase() === login.toLowerCase()) return true
+              try {
+                await github.rest.orgs.checkPublicMembershipForUser({ org: repoOwner, username: login })
+                return true
+              } catch {
+                return false
+              }
+            }
+
+            const login = context.payload.pull_request.user.login
+            const unverified = []
+            for (const fileName of ["plugins.json", "themes.json"].filter((name) => fileNames.includes(name))) {
+              const base = new Map((await readIndex(fileName, context.payload.pull_request.base.sha)).map((entry) => [entry.id, entry]))
+              const head = await readIndex(fileName, `refs/pull/${pull_number}/head`)
+              for (const entry of head) {
+                const previous = base.get(entry.id)
+                if (previous && previous.repo === entry.repo) continue
+                if (!(await ownsRepository(login, entry.repo))) unverified.push(`${entry.id} (${entry.repo})`)
+              }
+            }
+
+            if (unverified.length > 0) {
+              await ensureLabel("review/ownership")
+              await addLabels(["review/ownership"])
+              core.warning(`@${login} is not the owner or a public org member of: ${unverified.join(", ")}`)
+            } else {
+              await removeLabel("review/ownership")
+            }

@@ -1,0 +1,35 @@
+name: Marketplace Stats
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: registry-data
+  cancel-in-progress: false
+
+jobs:
+  stats:
+    name: Count downloads and stars
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Restore stats
+        run: scripts/restore-stats.sh
+
+      - name: Update downloads, stars and latest releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/update-stats.mjs
+
+      - name: Publish stats
+        run: 'scripts/publish-stats.sh "chore(stats): update downloads"'

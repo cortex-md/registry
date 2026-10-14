@@ -1,0 +1,47 @@
+name: Report a plugin or theme
+description: Report malicious, broken or abusive Marketplace content
+title: "report: <kind> <id>"
+labels:
+  - report
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - plugin
+        - theme
+    validations:
+      required: true
+  - type: input
+    id: id
+    attributes:
+      label: Marketplace id
+      placeholder: note-pulse
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The installed version, shown in Cortex → Marketplace.
+      placeholder: 1.2.0
+  - type: dropdown
+    id: reason
+    attributes:
+      label: Reason
+      options:
+        - Security or privacy risk
+        - Malicious behavior
+        - Broken or crashes Cortex
+        - Spam, impersonation or stolen work
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened
+      description: Steps, evidence and links. Do not paste secrets or private notes.
+    validations:
+      required: true

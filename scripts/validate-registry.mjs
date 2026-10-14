@@ -1,38 +1,24 @@
+import { execFileSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { pathToFileURL } from "node:url"
-
-const REGISTRY_FILES = [
-	{ kind: "plugin", fileName: "plugins.json" },
-	{ kind: "theme", fileName: "themes.json" },
-]
+import { PLUGIN_PERMISSIONS } from "./lib/bundle-scan.mjs"
+import {
+	BLOCKED_FIELDS,
+	BLOCKED_FILE,
+	canonicalListJson,
+	canonicalStatsJson,
+	MAINTAINER_FILES,
+	REGISTRY_FILES,
+	STATS_FILE,
+	VERIFIED_FIELDS,
+	VERIFIED_FILE,
+} from "./lib/registry-data.mjs"
 
 const ENTRY_FIELDS = ["id", "name", "author", "authorUrl", "description", "coverImageUrl", "repo"]
 
-const VALID_PLUGIN_CAPABILITIES = new Set([
-	"vault:read",
-	"vault:write",
-	"vault:delete",
-	"vault:watch",
-	"editor:read",
-	"editor:write",
-	"editor:extensions",
-	"markdown:extensions",
-	"ui:views",
-	"ui:sidebar",
-	"ui:statusbar",
-	"ui:contextmenu",
-	"ui:modals",
-	"workspace:tabs",
-	"commands",
-	"settings",
-	"theme:read",
-	"bookmarks:read",
-	"bookmarks:write",
-	"properties:types",
-	"data",
-	"notifications",
-])
+const MAINTAINER_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"])
+const AUTOMATION_LOGINS = new Set(["github-actions[bot]"])
 
 export class RegistryValidationError extends Error {
 	constructor(issues) {
@@ -139,14 +125,150 @@ export async function validateRegistry(rootDir = process.cwd(), options = {}) {
 	}
 
 	issues.push(...validateCrossRegistryIds(entriesByKind))
+	issues.push(...(await validateMaintainerFiles(rootDir, entriesByKind)))
+	if (options.pullRequest) {
+		issues.push(...validatePullRequestScope(options.pullRequest, options.changedFiles ?? []))
+	}
 
 	if (checkRemote) {
-		const remoteIssues = await validateRemoteEntries(entriesByKind, token)
+		const remoteEntries = options.baseRef
+			? selectChangedEntries(entriesByKind, (fileName) => readBaseFile(rootDir, options.baseRef, fileName))
+			: entriesByKind
+		const remoteIssues = await validateRemoteEntries(remoteEntries, token)
 		issues.push(...remoteIssues)
 	}
 
 	if (issues.length > 0) throw new RegistryValidationError(issues)
 	return { entriesByKind }
+}
+
+export async function validateMaintainerFiles(rootDir, entriesByKind) {
+	const issues = []
+	const idsByKind = new Map(entriesByKind.map(({ kind, entries }) => [kind, new Map(entries.map((entry) => [entry.id, entry]))]))
+
+	const verified = await readListFile(rootDir, VERIFIED_FILE, VERIFIED_FIELDS, issues)
+	for (const [index, entry] of verified.entries()) {
+		const label = `${VERIFIED_FILE}[${index}]`
+		if (!idsByKind.has(entry.kind)) issues.push(`${label}: kind must be plugin or theme`)
+		else if (!idsByKind.get(entry.kind).has(entry.id)) issues.push(`${label}: ${entry.kind} "${entry.id}" is not listed`)
+		if (!isIsoDate(entry.since)) issues.push(`${label}: since must be an ISO date (YYYY-MM-DD)`)
+	}
+
+	const blocked = await readListFile(rootDir, BLOCKED_FILE, BLOCKED_FIELDS, issues)
+	for (const [index, entry] of blocked.entries()) {
+		const label = `${BLOCKED_FILE}[${index}]`
+		if (!idsByKind.has(entry.kind)) issues.push(`${label}: kind must be plugin or theme`)
+		if (typeof entry.repo !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(entry.repo)) {
+			issues.push(`${label}: repo must use owner/repo format`)
+		}
+		if (typeof entry.reason !== "string" || entry.reason.trim().length === 0) issues.push(`${label}: reason is required`)
+		if (!isIsoDate(entry.since)) issues.push(`${label}: since must be an ISO date (YYYY-MM-DD)`)
+		if (entry.versions !== null && !(Array.isArray(entry.versions) && entry.versions.length > 0 && entry.versions.every(isSemver))) {
+			issues.push(`${label}: versions must be null (whole item) or a non-empty list of MAJOR.MINOR.PATCH versions`)
+		}
+		const listed = idsByKind.get(entry.kind)?.get(entry.id)
+		if (entry.versions === null && listed && listed.repo !== entry.repo) {
+			issues.push(`${label}: blocked id "${entry.id}" cannot be reused by another repository (${listed.repo})`)
+		}
+	}
+
+	let statsSource = null
+	try {
+		statsSource = await readFile(join(rootDir, STATS_FILE), "utf8")
+	} catch (error) {
+		if (error.code !== "ENOENT") issues.push(`${STATS_FILE}: could not read file: ${getErrorMessage(error)}`)
+	}
+	if (statsSource !== null) {
+		try {
+			const stats = JSON.parse(statsSource)
+			if (!isRecord(stats) || !isRecord(stats.plugins) || !isRecord(stats.themes)) {
+				issues.push(`${STATS_FILE}: expected { generatedAt, plugins, themes }`)
+			} else if (statsSource !== canonicalStatsJson(stats)) {
+				issues.push(`${STATS_FILE}: formatting does not match canonical output`)
+			}
+		} catch (error) {
+			issues.push(`${STATS_FILE}: invalid JSON: ${getErrorMessage(error)}`)
+		}
+	}
+
+	return issues
+}
+
+export function validatePullRequestScope(pullRequest, changedFiles) {
+	const protectedChanges = changedFiles.filter((file) => MAINTAINER_FILES.includes(file))
+	if (protectedChanges.length === 0) return []
+	if (MAINTAINER_ASSOCIATIONS.has(pullRequest.authorAssociation)) return []
+	if (AUTOMATION_LOGINS.has(pullRequest.login) && protectedChanges.every((file) => file === BLOCKED_FILE)) return []
+	return [`${protectedChanges.join(", ")} can only be changed by registry maintainers`]
+}
+
+async function readListFile(rootDir, fileName, fields, issues) {
+	let source
+	try {
+		source = await readFile(join(rootDir, fileName), "utf8")
+	} catch (error) {
+		if (error.code === "ENOENT") return []
+		issues.push(`${fileName}: could not read file: ${getErrorMessage(error)}`)
+		return []
+	}
+	let parsed
+	try {
+		parsed = JSON.parse(source)
+	} catch (error) {
+		issues.push(`${fileName}: invalid JSON: ${getErrorMessage(error)}`)
+		return []
+	}
+	if (!Array.isArray(parsed) || !parsed.every(isRecord)) {
+		issues.push(`${fileName}: expected a JSON array of objects`)
+		return []
+	}
+	const seen = new Set()
+	for (const entry of parsed) {
+		const key = `${entry.kind}:${entry.id}`
+		if (seen.has(key)) issues.push(`${fileName}: duplicate entry ${key}`)
+		seen.add(key)
+		for (const field of Object.keys(entry)) {
+			if (!fields.includes(field)) issues.push(`${fileName}: unknown field "${field}" in ${key}`)
+		}
+	}
+	if (source !== canonicalListJson(parsed, fields)) {
+		issues.push(`${fileName}: formatting, ordering or field order does not match canonical output`)
+	}
+	return parsed
+}
+
+function isIsoDate(value) {
+	return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+export function selectChangedEntries(entriesByKind, readBase) {
+	return entriesByKind.map(({ kind, entries }) => {
+		const fileName = REGISTRY_FILES.find((file) => file.kind === kind).fileName
+		const baseEntries = parseBaseEntries(readBase(fileName))
+		const baseById = new Map(baseEntries.map((entry) => [entry.id, JSON.stringify(normalizeEntry(entry))]))
+		return {
+			kind,
+			entries: entries.filter((entry) => baseById.get(entry.id) !== JSON.stringify(normalizeEntry(entry))),
+		}
+	})
+}
+
+function parseBaseEntries(source) {
+	if (!source) return []
+	try {
+		const parsed = JSON.parse(source)
+		return Array.isArray(parsed) ? parsed.filter(isRecord) : []
+	} catch {
+		return []
+	}
+}
+
+function readBaseFile(rootDir, baseRef, fileName) {
+	try {
+		return execFileSync("git", ["show", `${baseRef}:${fileName}`], { cwd: rootDir, encoding: "utf8" })
+	} catch {
+		return ""
+	}
 }
 
 export function validatePluginRelease(entry, release, manifestSource) {
@@ -164,13 +286,7 @@ export function validatePluginRelease(entry, release, manifestSource) {
 		issues.push(`${entry.id}: release is missing plugin main asset "${mainPath}"`)
 	}
 
-	if (findAsset(release.assets, "styles.css")) {
-		const capabilities = Array.isArray(manifest.value.capabilities) ? manifest.value.capabilities : []
-		if (!capabilities.includes("markdown:extensions")) {
-			issues.push(`${entry.id}: styles.css requires the "markdown:extensions" capability`)
-		}
-	}
-
+	issues.push(...validateReleaseTag(entry, release, manifest.value))
 	return issues
 }
 
@@ -180,6 +296,7 @@ export function validateThemeRelease(entry, release, manifestSource) {
 	if (!manifest.value) return manifest.issues
 
 	issues.push(...validateThemeManifest(entry, manifest.value))
+	issues.push(...validateReleaseTag(entry, release, manifest.value))
 
 	if (isRecord(manifest.value.colorschemes)) {
 		for (const colorScheme of ["dark", "light"]) {
@@ -315,15 +432,16 @@ function validatePluginManifest(entry, manifest) {
 	if (typeof manifest.main === "string" && !normalizeRelativePath(manifest.main, "plugin main")) {
 		issues.push(`${entry.id}: manifest.main must be a safe relative path`)
 	}
-	if (manifest.capabilities !== undefined) {
-		if (!Array.isArray(manifest.capabilities)) {
-			issues.push(`${entry.id}: manifest.capabilities must be an array when provided`)
-		} else {
-			for (const capability of manifest.capabilities) {
-				if (!VALID_PLUGIN_CAPABILITIES.has(capability)) {
-					issues.push(`${entry.id}: unknown plugin capability "${capability}"`)
-				}
-			}
+	for (const field of ["permissions", "capabilities"]) {
+		const values = manifest[field]
+		if (values === undefined) continue
+		if (!Array.isArray(values)) {
+			issues.push(`${entry.id}: manifest.${field} must be an array when provided`)
+			continue
+		}
+		const unknown = values.filter((permission) => !PLUGIN_PERMISSIONS.has(permission))
+		if (unknown.length > 0) {
+			issues.push(`${entry.id}: unknown plugin permissions in manifest.${field}: ${unknown.join(", ")}`)
 		}
 	}
 	return issues
@@ -339,6 +457,8 @@ function validateThemeManifest(entry, manifest) {
 	if (manifest.id !== entry.id) issues.push(`${entry.id}: manifest.id must match registry id`)
 	if (typeof manifest.name === "string" && !/^[a-z0-9][a-z0-9-]*$/.test(manifest.name)) {
 		issues.push(`${entry.id}: manifest.name must be a lowercase theme family slug`)
+	} else if (manifest.name !== entry.id) {
+		issues.push(`${entry.id}: manifest.name must equal the registry id so Cortex can detect installed themes`)
 	}
 	if (typeof manifest.version === "string" && !isSemver(manifest.version)) {
 		issues.push(`${entry.id}: manifest.version must be semver`)
@@ -360,6 +480,14 @@ function validateThemeManifest(entry, manifest) {
 		}
 	}
 	return issues
+}
+
+function validateReleaseTag(entry, release, manifest) {
+	if (typeof manifest.version !== "string" || typeof release.tag_name !== "string") return []
+	if (release.tag_name.replace(/^v/, "") !== manifest.version) {
+		return [`${entry.id}: release tag ${release.tag_name} must match manifest.version ${manifest.version}`]
+	}
+	return []
 }
 
 function parseManifestSource(entry, source, kind) {
@@ -442,17 +570,41 @@ function isHttpsUrl(value) {
 }
 
 function isSemver(value) {
-	return typeof value === "string" && /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(value)
+	return typeof value === "string" && /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(value)
 }
 
 function getErrorMessage(error) {
 	return error instanceof Error ? error.message : String(error)
 }
 
+async function readPullRequestContext() {
+	if (!process.env.GITHUB_EVENT_PATH) return null
+	try {
+		const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"))
+		if (!event.pull_request) return null
+		return { authorAssociation: event.pull_request.author_association, login: event.pull_request.user?.login }
+	} catch {
+		return null
+	}
+}
+
+function listChangedFiles(rootDir, baseRef) {
+	try {
+		return execFileSync("git", ["diff", "--name-only", `${baseRef}...HEAD`], { cwd: rootDir, encoding: "utf8" })
+			.split("\n")
+			.filter(Boolean)
+	} catch {
+		return []
+	}
+}
+
 async function main() {
 	const checkRemote = !process.argv.includes("--skip-remote")
+	const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined
+	const pullRequest = await readPullRequestContext()
+	const changedFiles = baseRef ? listChangedFiles(process.cwd(), baseRef) : []
 	try {
-		await validateRegistry(process.cwd(), { checkRemote })
+		await validateRegistry(process.cwd(), { checkRemote, baseRef, pullRequest, changedFiles })
 		console.log("Registry validation passed.")
 	} catch (error) {
 		if (error instanceof RegistryValidationError) {
@@ -464,6 +616,6 @@ async function main() {
 	}
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	await main()
 }
