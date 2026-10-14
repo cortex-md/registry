@@ -136,10 +136,10 @@ describe("release asset validation", () => {
 		assert.deepEqual(issues, [])
 	})
 
-	it("rejects plugin styles without the markdown extension capability", () => {
+	it("rejects legacy capabilities that are not plugin permissions", () => {
 		const issues = validatePluginRelease(
 			pluginEntry,
-			releaseWithAssets(["manifest.json", "main.js", "styles.css"]),
+			releaseWithAssets(["manifest.json", "main.js"]),
 			JSON.stringify({
 				id: pluginEntry.id,
 				name: pluginEntry.name,
@@ -149,11 +149,11 @@ describe("release asset validation", () => {
 				description: pluginEntry.description,
 				icon: "puzzle",
 				main: "main.js",
-				capabilities: [],
+				capabilities: ["commands", "vault:read"],
 			}),
 		)
 
-		assert.ok(issues.some((issue) => issue.includes('styles.css requires the "markdown:extensions"')))
+		assert.ok(issues.some((issue) => issue.includes("unknown plugin permissions in manifest.capabilities: commands")))
 	})
 
 	it("accepts theme stylesheet assets by colorscheme fallback names", () => {
@@ -162,7 +162,7 @@ describe("release asset validation", () => {
 			releaseWithAssets(["manifest.json", "dark.css", "light.css"]),
 			JSON.stringify({
 				id: themeEntry.id,
-				name: "sample-theme",
+				name: themeEntry.id,
 				displayName: themeEntry.name,
 				author: themeEntry.author,
 				version: "1.0.0",

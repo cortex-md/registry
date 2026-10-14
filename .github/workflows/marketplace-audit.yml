@@ -1,0 +1,37 @@
+name: Marketplace Audit
+
+on:
+  schedule:
+    - cron: "5 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: registry-data
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit latest releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Restore stats
+        run: scripts/restore-stats.sh
+
+      - name: Scan releases and propose blocks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/audit-releases.mjs
+
+      - name: Publish stats
+        run: 'scripts/publish-stats.sh "chore(stats): update audit"'

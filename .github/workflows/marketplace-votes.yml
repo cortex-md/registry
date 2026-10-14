@@ -1,0 +1,36 @@
+name: Marketplace Votes
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  discussions: read
+
+concurrency:
+  group: registry-data
+  cancel-in-progress: false
+
+jobs:
+  votes:
+    name: Count votes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Restore stats
+        run: scripts/restore-stats.sh
+
+      - name: Count thumbs-up reactions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/update-votes.mjs
+
+      - name: Publish stats
+        run: 'scripts/publish-stats.sh "chore(stats): update votes"'

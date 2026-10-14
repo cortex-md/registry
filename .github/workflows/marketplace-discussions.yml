@@ -1,0 +1,42 @@
+name: Marketplace Discussions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - plugins.json
+      - themes.json
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  discussions: write
+
+concurrency:
+  group: registry-data
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync voting discussions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Restore stats
+        run: scripts/restore-stats.sh
+
+      - name: Create, relist and lock discussions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/sync-discussions.mjs
+
+      - name: Publish stats
+        run: 'scripts/publish-stats.sh "chore(stats): sync discussions"'
