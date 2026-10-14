@@ -1,8 +1,12 @@
 {
-	"generatedAt": "2026-10-14T21:52:47.090Z",
+	"generatedAt": "2026-10-14T21:56:03.062Z",
 	"plugins": {
 		"smart-typography": {
+			"downloads": 1,
+			"stars": 0,
 			"votes": 0,
+			"latest": "0.1.0",
+			"releasedAt": "2026-10-14T19:08:07Z",
 			"discussion": {
 				"number": 11,
 				"nodeId": "D_kwDOTFXh0M4AqC2P",
@@ -12,11 +16,11 @@
 	},
 	"themes": {
 		"gruvbox": {
-			"downloads": 18,
+			"downloads": 25,
 			"stars": 0,
 			"votes": 1,
-			"latest": "1.0.0",
-			"releasedAt": "2026-06-26T15:23:27Z",
+			"latest": "1.1.0",
+			"releasedAt": "2026-10-14T17:46:58Z",
 			"discussion": {
 				"number": 7,
 				"nodeId": "D_kwDOTFXh0M4AqCp_",
