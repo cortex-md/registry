@@ -46,7 +46,7 @@ export function discussionBody(kind, entry) {
 		`- Repository: https://github.com/${entry.repo}`,
 		`- Install: open Cortex → Marketplace → ${CATEGORY_BY_KIND[kind]} and search for **${entry.name}**`,
 		"",
-		`👍 **React with a thumbs up to vote for this ${kind}.** Only 👍 reactions on this post are counted.`,
+		`⬆️ **Upvote this discussion to vote for this ${kind}.** Only upvotes are counted; reactions and comments are not votes.`,
 		"",
 		"Comments are welcome for reviews, questions and feedback. Report security or abuse problems with the \"Report a plugin or theme\" issue form instead.",
 	].join("\n")

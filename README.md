@@ -87,7 +87,7 @@ https://raw.githubusercontent.com/cortex-md/registry/data/stats.json
 
 | Field | Source | Refresh |
 | --- | --- | --- |
-| `votes` | 👍 reactions on the item's Discussion (`Plugins` / `Themes` categories) | every 30 min |
+| `votes` | Upvotes on the item's Discussion (`Plugins` / `Themes` categories) | every 30 min |
 | `downloads` | `download_count` of the bundle asset (themes: the most downloaded stylesheet) summed over every release; never decreases | every 6 h |
 | `stars`, `latest`, `releasedAt` | the item's repository and latest release | every 6 h |
 | `audit` | static scan of the latest release, mirroring `cortex check` | daily |

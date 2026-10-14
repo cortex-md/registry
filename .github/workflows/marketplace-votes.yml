@@ -27,7 +27,7 @@ jobs:
       - name: Restore stats
         run: scripts/restore-stats.sh
 
-      - name: Count thumbs-up reactions
+      - name: Count discussion upvotes
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/update-votes.mjs
