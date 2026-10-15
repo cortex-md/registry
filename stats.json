@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-10-15T05:07:52.822Z",
+	"generatedAt": "2026-10-15T09:04:52.853Z",
 	"plugins": {
 		"smart-typography": {
 			"downloads": 1,
@@ -11,6 +11,12 @@
 				"number": 11,
 				"nodeId": "D_kwDOTFXh0M4AqC2P",
 				"url": "https://github.com/cortex-md/registry/discussions/11"
+			},
+			"audit": {
+				"status": "pass",
+				"checkedTag": "v0.1.0",
+				"checkedAt": "2026-10-15T09:04:51.810Z",
+				"issues": []
 			}
 		}
 	},
@@ -25,6 +31,12 @@
 				"number": 7,
 				"nodeId": "D_kwDOTFXh0M4AqCp_",
 				"url": "https://github.com/cortex-md/registry/discussions/7"
+			},
+			"audit": {
+				"status": "pass",
+				"checkedTag": "v1.1.0",
+				"checkedAt": "2026-10-15T09:04:52.853Z",
+				"issues": []
 			}
 		}
 	}
