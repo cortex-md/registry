@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-10-17T05:57:46.339Z",
+	"generatedAt": "2026-10-17T08:29:08.451Z",
 	"plugins": {
 		"smart-typography": {
 			"downloads": 3,
@@ -15,7 +15,7 @@
 			"audit": {
 				"status": "pass",
 				"checkedTag": "v0.1.0",
-				"checkedAt": "2026-10-16T08:57:12.853Z",
+				"checkedAt": "2026-10-17T08:29:07.965Z",
 				"issues": []
 			}
 		}
@@ -35,7 +35,7 @@
 			"audit": {
 				"status": "pass",
 				"checkedTag": "v1.1.0",
-				"checkedAt": "2026-10-16T08:57:13.400Z",
+				"checkedAt": "2026-10-17T08:29:08.451Z",
 				"issues": []
 			}
 		}
