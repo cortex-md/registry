@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-10-19T04:27:40.295Z",
+	"generatedAt": "2026-10-19T05:16:26.312Z",
 	"plugins": {
 		"smart-typography": {
 			"downloads": 5,
@@ -22,7 +22,7 @@
 	},
 	"themes": {
 		"gruvbox": {
-			"downloads": 49,
+			"downloads": 52,
 			"stars": 0,
 			"votes": 1,
 			"latest": "1.1.0",
